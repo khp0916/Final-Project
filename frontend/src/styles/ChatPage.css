@@ -58,7 +58,7 @@
   border-bottom-right-radius: 0;
 }
 
-.bot {
+.assistant {
   align-self: flex-start;
   background-color: #e0dbdb;
   color: black;
@@ -103,8 +103,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.3s;
-  padding: 0;
+  transition: background-color 0.2s;
 }
 
 .input-send-button:hover {
@@ -121,6 +120,6 @@
   cursor: not-allowed;
 }
 
-.message.bot .MuiCircularProgress-root {
-  color: #666666;
+.message.assistant .MuiCircularProgress-root {
+  color: #666;
 }

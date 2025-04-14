@@ -40,3 +40,15 @@ export const createAnswer = async (query, collection_name, top_k) => {
         throw error;
     }
 };
+
+export const getChatHistory = async (productId) => {
+    try {
+        console.log("대화 기록 조회 요청 시작 - 제품 ID:", productId);
+        const response = await axiosInstance.get(`/chat/history?productId=${productId}`);
+        console.log("대화 기록 조회 응답:", response);
+        return response;
+    } catch (error) {
+        console.error("대화 기록 조회 실패:", error);
+        throw error;
+    }
+};
