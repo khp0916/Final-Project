@@ -16,6 +16,9 @@ public class QuestionRequestDTO {
 
     @JsonProperty("top_k")
     private int top_k = 3;
+
+    @JsonProperty("user_id")
+    private Integer user_id;
 }
 
 

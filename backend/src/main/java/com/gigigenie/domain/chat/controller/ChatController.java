@@ -14,24 +14,45 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/chat")
 @RequiredArgsConstructor
+@RequestMapping("/api/chat")
 public class ChatController {
 
     private final ChatService chatService;
 
     @PostMapping("/ask")
-    public Mono<AnswerResponseDTO> getAnswer(@RequestBody QuestionRequestDTO dto, @RequestHeader(value = "Authorization", required = false) String authHeader) {
-        log.info("Received chat question request");
-        return chatService.getAnswer(dto, authHeader);
+    public Mono<ResponseEntity<AnswerResponseDTO>> getAnswer(
+            @RequestBody QuestionRequestDTO dto,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        log.info("=== Received Question Request ===");
+        log.info("DTO: {}", dto);
+        log.info("Auth Header: {}", authHeader);
+
+        return chatService.getAnswer(dto, authHeader)
+                .map(answer -> {
+                    log.info("=== Sending Answer Response ===");
+                    log.info("Answer: {}", answer);
+                    return ResponseEntity.ok(answer);
+                });
     }
 
     @GetMapping("/history")
-    public ResponseEntity<List<QueryHistoryDTO>> getChatHistory(@RequestParam Long productId) {
-        log.info("Received request to get chat history for product: {}", productId);
-        List<QueryHistoryDTO> histories = chatService.getChatHistory(productId);
-        log.info("Returning {} chat history records for product: {}", histories.size(), productId);
-        return ResponseEntity.ok(histories);
+    public ResponseEntity<List<QueryHistoryDTO>> getChatHistory(
+            @RequestParam Long productId,
+            @RequestParam Long userId) {
+        log.info("=== Received Chat History Request ===");
+        log.info("ProductId: {}, UserId: {}", productId, userId);
+        
+        if (userId == null) {
+            log.warn("User ID is required for chat history");
+            return ResponseEntity.badRequest().build();
+        }
+        
+        List<QueryHistoryDTO> history = chatService.getChatHistory(productId, userId);
+        log.info("=== Sending Chat History Response ===");
+        log.info("History size: {}", history.size());
+        
+        return ResponseEntity.ok(history);
     }
 }
 

@@ -22,8 +22,21 @@ const ChatPage = () => {
 
     const loadPreviousChats = async () => {
       try {
-        console.log("이전 대화 기록 불러오기 시작 - 제품 ID:", productId);
-        const response = await getChatHistory(productId);
+        const userId = localStorage.getItem('userId');
+        console.log("현재 로그인된 userId:", userId);
+        
+        if (!userId) {
+          console.warn("User ID is required for chat history");
+          setMessages([{
+            type: 'assistant',
+            content: "로그인이 필요합니다. 로그인 후 다시 시도해주세요.",
+            timestamp: new Date().toLocaleString('ko-KR')
+          }]);
+          return;
+        }
+
+        console.log("이전 대화 기록 불러오기 시작 - 제품 ID:", productId, "User ID:", userId);
+        const response = await getChatHistory(productId, userId);
         console.log("받아온 대화 기록:", response);
         
         if (!response || !response.data || response.data.length === 0) {
@@ -35,29 +48,15 @@ const ChatPage = () => {
           }]);
         } else {
           console.log("대화 기록을 메시지 형식으로 변환");
-          // 질문과 답변을 시간순으로 정렬 (queryTime을 기준으로)
-          const sortedHistory = response.data.sort((a, b) => {
-            if (a.queryTime === b.queryTime) {
-              // 같은 시간이면 queryId로 정렬 (나중에 생성된 것이 뒤에 오도록)
-              return a.queryId - b.queryId;
-            }
-            return a.queryTime - b.queryTime;
-          });
-          
-          // 질문과 답변을 번갈아가며 표시
-          const newMessages = [];
-          sortedHistory.forEach(item => {
-              newMessages.push({
-                  type: 'user',
-                  content: item.queryText,
-                  timestamp: item.formattedQueryTime
-              });
-              newMessages.push({
-                  type: 'assistant',
-                  content: item.responseText,
-                  timestamp: item.formattedQueryTime
-              });
-          });
+          const newMessages = response.data.map(item => ({
+            type: 'user',
+            content: item.queryText,
+            timestamp: item.formattedQueryTime
+          })).concat(response.data.map(item => ({
+            type: 'assistant',
+            content: item.responseText,
+            timestamp: item.formattedQueryTime
+          })));
           
           console.log("변환된 메시지:", newMessages);
           setMessages(newMessages);
@@ -66,7 +65,7 @@ const ChatPage = () => {
         console.error("대화 기록 불러오기 실패:", error);
         setMessages([{
           type: 'assistant',
-          content: "안녕하세요. 어떤 사용법을 알려드릴까요?",
+          content: "대화 기록을 불러오는 중 문제가 발생했습니다. 다시 시도해주세요.",
           timestamp: new Date().toLocaleString('ko-KR')
         }]);
       }

@@ -28,14 +28,8 @@ def get_vector_store(collection_name, embeddings=None):
     POSTGRES_HOST = os.getenv("POSTGRES_HOST")
     POSTGRES_PORT = os.getenv("POSTGRES_PORT")
     
-    print(f"Connecting to PostgreSQL: {POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}")
-    print(f"Collection name: {collection_name}")
-    print(f"User: {POSTGRES_USER}")
-    print(f"Database: {POSTGRES_DB}")
-    
     # 연결 문자열 구성
     connection = f"postgresql+psycopg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-    print(f"Connection string: {connection}")
     
     try:
         vector_store = PGVector(

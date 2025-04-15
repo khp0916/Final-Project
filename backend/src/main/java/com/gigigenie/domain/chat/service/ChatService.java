@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,7 +33,27 @@ public class ChatService {
     private final JWTUtil jwtUtil;
 
     public Mono<AnswerResponseDTO> getAnswer(QuestionRequestDTO dto, String authHeader) {
-        log.info("Sending question to FastAPI - Query: {}, Collection: {}", dto.getQuery(), dto.getCollection_name());
+        log.info("=== Sending Question to FastAPI ===");
+        log.info("Raw DTO: {}", dto);
+        log.info("Auth Header: {}", authHeader);
+        
+        // JWT 토큰에서 user_id 추출
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                String token = authHeader.substring(7);
+                Map<String, Object> claims = jwtUtil.validateToken(token);
+                Integer userId = (Integer) claims.get("id");
+                dto.setUser_id(userId);
+                log.info("Extracted user_id from JWT: {}", userId);
+                log.info("Updated DTO with user_id: {}", dto);
+            } catch (Exception e) {
+                log.warn("Failed to process JWT token: {}", e.getMessage());
+            }
+        } else {
+            log.info("No valid auth header found");
+        }
+        
+        log.info("Sending request to FastAPI with body: {}", dto);
         
         return webClient.post()
                 .uri("/api/chat/ask")
@@ -40,7 +61,8 @@ public class ChatService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .map(res -> {
-                    log.info("Received answer from FastAPI");
+                    log.info("=== Received Answer from FastAPI ===");
+                    log.info("Response: {}", res);
                     String answer = (String) res.get("answer");
                     
                     if (authHeader != null && authHeader.startsWith("Bearer ")) {
@@ -67,7 +89,7 @@ public class ChatService {
                             
                             log.info("Query history saved for user: {}", userId);
                         } catch (Exception e) {
-                            log.warn("Failed to process JWT token: {}", e.getMessage());
+                            log.warn("Failed to save query history: {}", e.getMessage());
                         }
                     }
                     
@@ -76,10 +98,18 @@ public class ChatService {
     }
 
     @Transactional(readOnly = true)
-    public List<QueryHistoryDTO> getChatHistory(Long productId) {
-        log.info("Fetching chat history for product: {}", productId);
-        List<QueryHistory> histories = queryHistoryRepository.findByProductIdOrderByQueryTimeDesc(productId);
-        log.info("Found {} chat history records for product: {}", histories.size(), productId);
+    public List<QueryHistoryDTO> getChatHistory(Long productId, Long userId) {
+        if (userId == null) {
+            log.warn("User ID is required for chat history");
+            return Collections.emptyList();
+        }
+
+        log.info("Fetching chat history for product: {}, user: {}", productId, userId);
+        List<QueryHistory> histories = queryHistoryRepository
+                .findByProductIdAndMemberIdOrderByQueryTimeDesc(productId, userId);
+
+        log.info("Found {} chat history records for product: {}, user: {}",
+                histories.size(), productId, userId);
         return histories.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());

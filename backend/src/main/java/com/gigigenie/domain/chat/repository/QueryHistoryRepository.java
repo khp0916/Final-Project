@@ -10,4 +10,5 @@ import java.util.List;
 public interface QueryHistoryRepository extends JpaRepository<QueryHistory, Long> {
     List<QueryHistory> findAllByOrderByQueryTimeDesc();
     List<QueryHistory> findByProductIdOrderByQueryTimeDesc(Long productId);
+    List<QueryHistory> findByProductIdAndMemberIdOrderByQueryTimeDesc(Long productId, Long memberId);
 } 

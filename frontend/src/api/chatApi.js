@@ -41,14 +41,27 @@ export const createAnswer = async (query, collection_name, top_k) => {
     }
 };
 
-export const getChatHistory = async (productId) => {
+export const getChatHistory = async (productId, userId) => {
+    if (!userId) {
+        console.warn("User ID is required for chat history");
+        return { data: [] };
+    }
+    
     try {
-        console.log("대화 기록 조회 요청 시작 - 제품 ID:", productId);
-        const response = await axiosInstance.get(`/chat/history?productId=${productId}`);
+        console.log("대화 기록 조회 요청 시작 - 제품 ID:", productId, "User ID:", userId);
+        const response = await axiosInstance.get(`/chat/history`, {
+            params: {
+                productId: productId,
+                userId: userId
+            }
+        });
         console.log("대화 기록 조회 응답:", response);
         return response;
     } catch (error) {
         console.error("대화 기록 조회 실패:", error);
+        if (error.response) {
+            console.error("에러 응답:", error.response.data);
+        }
         throw error;
     }
 };
