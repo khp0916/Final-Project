@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -19,6 +21,9 @@ public class QuestionRequestDTO {
 
     @JsonProperty("user_id")
     private Integer user_id;
+
+    @JsonProperty("chat_history")
+    private List<Map<String, String>> chat_history;
 }
 
 

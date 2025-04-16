@@ -9,28 +9,24 @@ import java.util.Arrays;
 
 public class CookieUtil {
 
-    public static void setTokenCookie(HttpServletResponse response, String name, String value, long mins) {
-        ResponseCookie cookie = ResponseCookie.from(name, value)
-                .path("/") // CORS 설정, 모든 경로에서 접근 가능, localhost:8080/api에서 path: "/api"
-                .httpOnly(true) // XSS 방지, JS에서 쿠키값을 읽는 것을 불가, XSS란?
-                .secure(true)   // HTTPS, SSL 설정
-                .sameSite("None")  // CORS 설정, 모든 도메인에서 접근 가능, None: 모든 도메인에서 접근 가능, Lax: 일부 도메인에서 접근 가능, Strict: 도메인에서만 접근 가능
-                .maxAge(mins * 60) // maxAge 설정 (초)
-                .build();
-
-        response.addHeader("Set-Cookie", cookie.toString());
+    public static void setTokenCookie(HttpServletResponse response, String name, String value, int maxAge) {
+        Cookie cookie = new Cookie(name, value);
+        cookie.setMaxAge(maxAge);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setAttribute("SameSite", "None");
+        response.addCookie(cookie);
     }
 
-    public static void removeTokenCookie(HttpServletResponse response, String token) {
-        ResponseCookie cookie = ResponseCookie.from(token, "")
-                .path("/")
-                .httpOnly(false)
-                .secure(true)
-                .sameSite("None")
-                .maxAge(0L)
-                .build();
-
-        response.addHeader("Set-Cookie", cookie.toString());
+    public static void removeTokenCookie(HttpServletResponse response, String name) {
+        Cookie cookie = new Cookie(name, null);
+        cookie.setMaxAge(0);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setAttribute("SameSite", "None");
+        response.addCookie(cookie);
     }
 
     public static String getTokenFromCookie(HttpServletRequest request, String name) {

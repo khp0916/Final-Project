@@ -90,6 +90,8 @@ const LoginPage = () => {
       const response = await loginPost(email, password);
 
       localStorage.setItem("token", response.accessToken);
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("userId", response.id);
       localStorage.setItem("user", JSON.stringify({
         id: response.id,
         name: response.name,

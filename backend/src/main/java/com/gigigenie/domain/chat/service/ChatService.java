@@ -33,27 +33,39 @@ public class ChatService {
     private final JWTUtil jwtUtil;
 
     public Mono<AnswerResponseDTO> getAnswer(QuestionRequestDTO dto, String authHeader) {
-        log.info("=== Sending Question to FastAPI ===");
-        log.info("Raw DTO: {}", dto);
-        log.info("Auth Header: {}", authHeader);
+        Integer userId = null;
         
         // JWT 토큰에서 user_id 추출
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             try {
                 String token = authHeader.substring(7);
                 Map<String, Object> claims = jwtUtil.validateToken(token);
-                Integer userId = (Integer) claims.get("id");
+                userId = (Integer) claims.get("id");
                 dto.setUser_id(userId);
-                log.info("Extracted user_id from JWT: {}", userId);
-                log.info("Updated DTO with user_id: {}", dto);
             } catch (Exception e) {
                 log.warn("Failed to process JWT token: {}", e.getMessage());
             }
-        } else {
-            log.info("No valid auth header found");
         }
-        
-        log.info("Sending request to FastAPI with body: {}", dto);
+
+        // 이전 대화 기록 조회
+        if (userId != null) {
+            String productIdStr = dto.getCollection_name().replace("product_", "").replace("_embeddings", "");
+            Long productId = Long.parseLong(productIdStr);
+            
+            List<QueryHistory> histories = queryHistoryRepository
+                    .findByProductIdAndMemberIdOrderByQueryTimeDesc(productId, userId.longValue());
+            
+            // 최근 5개의 대화만 포함
+            List<Map<String, String>> chatHistory = histories.stream()
+                    .limit(10)
+                    .map(history -> Map.of(
+                            "question", history.getQueryText(),
+                            "answer", history.getResponseText()
+                    ))
+                    .collect(Collectors.toList());
+            
+            dto.setChat_history(chatHistory);
+        }
         
         return webClient.post()
                 .uri("/api/chat/ask")
@@ -61,16 +73,11 @@ public class ChatService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .map(res -> {
-                    log.info("=== Received Answer from FastAPI ===");
-                    log.info("Response: {}", res);
                     String answer = (String) res.get("answer");
                     
-                    if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                    // 응답 저장
+                    if (userId != null) {
                         try {
-                            String token = authHeader.substring(7);
-                            Map<String, Object> claims = jwtUtil.validateToken(token);
-                            Integer userId = (Integer) claims.get("id");
-                            
                             Member member = memberRepository.findById(userId)
                                     .orElseThrow(() -> new RuntimeException("Member not found"));
                             
@@ -86,8 +93,6 @@ public class ChatService {
                             queryHistory.setResponseText(answer);
                             queryHistory.setQueryTime(currentTime);
                             queryHistoryRepository.save(queryHistory);
-                            
-                            log.info("Query history saved for user: {}", userId);
                         } catch (Exception e) {
                             log.warn("Failed to save query history: {}", e.getMessage());
                         }

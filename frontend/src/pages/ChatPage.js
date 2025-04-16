@@ -22,14 +22,17 @@ const ChatPage = () => {
 
     const loadPreviousChats = async () => {
       try {
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+        console.log("로그인 상태:", isLoggedIn);
+        
         const userId = localStorage.getItem('userId');
         console.log("현재 로그인된 userId:", userId);
         
-        if (!userId) {
-          console.warn("User ID is required for chat history");
+        if (!isLoggedIn || !userId) {
+          console.warn("로그인이 필요한 서비스입니다. isLoggedIn:", isLoggedIn, "userId:", userId);
           setMessages([{
             type: 'assistant',
-            content: "로그인이 필요합니다. 로그인 후 다시 시도해주세요.",
+            content: "로그인이 필요한 서비스입니다. 로그인 후 다시 시도해주세요.",
             timestamp: new Date().toLocaleString('ko-KR')
           }]);
           return;
@@ -37,7 +40,9 @@ const ChatPage = () => {
 
         console.log("이전 대화 기록 불러오기 시작 - 제품 ID:", productId, "User ID:", userId);
         const response = await getChatHistory(productId, userId);
-        console.log("받아온 대화 기록:", response);
+        console.log("받아온 대화 기록의 첫 번째 항목 시간:", response.data[0]?.formattedQueryTime);
+        console.log("받아온 대화 기록의 마지막 항목 시간:", response.data[response.data.length - 1]?.formattedQueryTime);
+        console.log("받아온 대화 기록:", response.data);
         
         if (!response || !response.data || response.data.length === 0) {
           console.log("대화 기록이 없어 초기 인사말 표시");
@@ -48,15 +53,23 @@ const ChatPage = () => {
           }]);
         } else {
           console.log("대화 기록을 메시지 형식으로 변환");
-          const newMessages = response.data.map(item => ({
-            type: 'user',
-            content: item.queryText,
-            timestamp: item.formattedQueryTime
-          })).concat(response.data.map(item => ({
-            type: 'assistant',
-            content: item.responseText,
-            timestamp: item.formattedQueryTime
-          })));
+          // DESC로 받은 데이터를 날짜순으로 정렬
+          const sortedData = [...response.data].sort((a, b) => 
+            new Date(a.formattedQueryTime) - new Date(b.formattedQueryTime)
+          );
+          
+          const newMessages = sortedData.flatMap(item => [
+            {
+              type: 'user',
+              content: item.queryText,
+              timestamp: item.formattedQueryTime
+            },
+            {
+              type: 'assistant',
+              content: item.responseText,
+              timestamp: item.formattedQueryTime
+            }
+          ]);
           
           console.log("변환된 메시지:", newMessages);
           setMessages(newMessages);
