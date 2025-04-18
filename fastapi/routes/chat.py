@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
-from services.chat_service import chat_service
+from services import chat_service
 import httpx
 import logging
 import sys
@@ -45,7 +45,7 @@ async def send_message(message: ChatMessage):
             user_id=str(message.user_id) if message.user_id else None
         )
         logger.info(f"Generated response: {response}")
-        return {"answer": response}
+        return response  # 전체 응답 객체를 그대로 반환
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

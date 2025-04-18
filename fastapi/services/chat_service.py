@@ -3,9 +3,7 @@ import httpx
 import logging
 import os
 from services.chat_memory import chat_memory_manager
-from services.llm import create_answer_with_gemini
-from services.storage import search_documents
-from services.query import search_documents_with_answer
+from services.storage import search_documents_with_answer
 
 logger = logging.getLogger(__name__)
 SPRINGBOOT_API_URL = os.getenv("SPRINGBOOT_API_URL", "http://localhost:8080")
@@ -56,67 +54,88 @@ class ChatService:
             logger.error(f"Error fetching chat history from Spring Boot: {str(e)}", exc_info=True)
             return []
 
-    async def process_message(self, product_id: str, message: str, user_id: str = None) -> str:
+    async def process_message(
+        self,
+        product_id: str,
+        message: str,
+        user_id: Optional[str] = None,
+        collection_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """메시지를 처리하고 응답을 생성합니다."""
         try:
-            logger.info("=== Processing Chat Message ===")
-            logger.info(f"Product ID: {product_id}, User ID: {user_id}, Message: {message}")
-
-            # userId가 없는 경우 (비로그인)
-            if not user_id:
-                logger.info("Processing message for non-logged in user")
-                result = await search_documents_with_answer(message, str(product_id))
-                return result["answer"]
-
-            # userId가 있는 경우 (로그인)
-            logger.info("Processing message for logged in user")
+            logger.info(f"Processing message - Product: {product_id}, User: {user_id}, Message: {message}")
             
-            # 1. 현재 메시지를 메모리에 추가
-            logger.info("Adding current message to memory")
+            # 메모리 키 생성
+            memory_key = f"{product_id}_{user_id}" if user_id else f"{product_id}_anonymous"
+            
+            # 현재 메모리 상태 확인
+            current_memory = self.memory_manager.get_chat_history(product_id, user_id)
+            logger.info(f"Current memory state for {memory_key}: {len(current_memory)} messages")
+            
+            # Spring Boot에서 채팅 기록 가져오기 (사용자가 있고 메모리가 비어있는 경우에만)
+            if user_id and not current_memory:
+                spring_history = await self.get_chat_history_from_spring(product_id, user_id)
+                if spring_history:
+                    logger.info(f"Retrieved {len(spring_history)} messages from Spring Boot")
+                    for msg in spring_history:
+                        self.memory_manager.add_message(
+                            product_id=product_id,
+                            message=msg["content"],
+                            is_user=msg["role"] == "user",
+                            user_id=user_id
+                        )
+                    current_memory = self.memory_manager.get_chat_history(product_id, user_id)
+            
+            # 현재 메시지를 메모리에 추가
             self.memory_manager.add_message(
                 product_id=product_id,
-                user_id=user_id,
                 message=message,
-                is_user=True
+                is_user=True,
+                user_id=user_id
             )
-
-            # 2. 현재 메모리의 대화 기록 가져오기
-            logger.info("Retrieving chat history from memory")
-            current_history = self.memory_manager.get_chat_history(product_id, user_id)
-            logger.info(f"Current history count: {len(current_history)}")
-            logger.info(f"Current history: {current_history}")
-
-            # 3. 컨텍스트 생성
-            logger.info("Building context from chat history")
-            context = self._build_context(current_history)
-            logger.info(f"Generated context: {context}")
-
-            # 4. 기존 쿼리 처리 로직 사용 (컨텍스트 포함)
-            logger.info("Generating response with search_documents_with_answer")
-            result = await search_documents_with_answer(message, str(product_id), context)
-            response = result["answer"]
-            logger.info(f"Generated response: {response}")
-
-            # 5. AI 응답을 메모리에 추가
-            logger.info("Adding AI response to memory")
+            
+            # 컨텍스트 생성 (이전 대화 기록 포함)
+            context = []
+            if current_memory:
+                context.append("이전 대화 내용:")
+                for msg in current_memory:
+                    role = "사용자" if msg["role"] == "user" else "AI"
+                    context.append(f"{role}: {msg['content']}")
+                context.append("")  # 빈 줄 추가
+            
+            # 문서 검색 및 답변 생성
+            result = await search_documents_with_answer(
+                query_text=message,
+                collection_name=collection_name or f"product_{product_id}_embeddings",
+                context="\n".join(context)
+            )
+            
+            # 응답을 메모리에 추가
             self.memory_manager.add_message(
                 product_id=product_id,
-                user_id=user_id,
-                message=response,
-                is_user=False
+                message=result["answer"],
+                is_user=False,
+                user_id=user_id
             )
-
-            # 6. 디버깅을 위해 현재 메모리 상태 출력
-            logger.info("=== Current Memory State ===")
+            
+            # 메모리 상태 출력 (디버깅용)
             self.memory_manager.print_all_conversations()
-            logger.info("=== End of Memory State ===")
-
-            return response
-
+            
+            # 현재 메모리 상태 다시 가져오기
+            current_memory = self.memory_manager.get_chat_history(product_id, user_id)
+            
+            return {
+                "answer": result["answer"],
+                "context": result["documents"],
+                "memory": current_memory
+            }
+            
         except Exception as e:
             logger.error(f"Error processing message: {str(e)}", exc_info=True)
             raise
 
     async def get_chat_history(self, product_id: int) -> List[Dict[str, Any]]:
+        """채팅 기록을 조회합니다."""
         try:
             logger.info(f"Getting chat history for product_id={product_id}")
             async with httpx.AsyncClient() as client:
@@ -133,32 +152,6 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error getting chat history: {str(e)}", exc_info=True)
             raise
-
-    def _build_context(self, chat_history: List[Dict[str, Any]]) -> str:
-        """사용자의 채팅 기록을 컨텍스트로 변환합니다."""
-        if not chat_history:
-            logger.info("No chat history available for context")
-            return ""
-            
-        logger.info("Building context from chat history")
-        context_lines = []
-        for chat in chat_history:
-            role = "사용자" if chat['role'] == 'user' else "AI"
-            context_lines.append(f"{role}: {chat['content']}")
-            logger.info(f"Added to context: {role}: {chat['content']}")
-            
-        context = "\n".join(context_lines)
-        logger.info(f"Final context: {context}")
-        return context
-
-    # Helper methods for adding messages to memory
-    def add_user_message(self, product_id: int, message: str, user_id: int) -> None:
-        """사용자 메시지를 메모리에 추가합니다."""
-        self.memory_manager.add_message(str(product_id), str(user_id), message, is_user=True)
-        
-    def add_ai_message(self, product_id: int, message: str, user_id: int) -> None:
-        """AI 응답을 메모리에 추가합니다."""
-        self.memory_manager.add_message(str(product_id), str(user_id), message, is_user=False)
 
 # 전역 인스턴스 생성
 chat_service = ChatService() 

@@ -1,19 +1,21 @@
 import os
 import json
 import httpx
+import re
 from typing import List, Dict, Any
 from dotenv import load_dotenv
-from services.embedding import get_embeddings, get_llm
+from services.embedding import get_embeddings
 from langchain_postgres import PGVector
 # from langchain_community.document_loaders import PyMuPDFLoader
 # from langchain_text_splitters import RecursiveCharacterTextSplitter
 # import tempfile
 from services.llm import create_answer_with_gemini
-import re
+import logging
 
+logger = logging.getLogger(__name__)
 load_dotenv()
 
-# ✅ Upstage 임베딩 모델 한 번만 생성 (매번 생성하지 않음)
+# ✅ Upstage 임베딩 모델 한 번만 생성
 embeddings = get_embeddings()
 
 def get_vector_store(collection_name, embeddings=None):
@@ -37,10 +39,10 @@ def get_vector_store(collection_name, embeddings=None):
             collection_name=collection_name,
             connection=connection
         )
-        print("Successfully created PGVector instance")
+        logger.info("Successfully created PGVector instance")
         return vector_store
     except Exception as e:
-        print(f"Error creating PGVector instance: {str(e)}")
+        logger.error(f"Error creating PGVector instance: {str(e)}")
         raise
 
 # async def process_pdf(file_content: bytes, file_name: str, collection_name: str = "langchain", chunk_size: int = 210, chunk_overlap: int = 50) -> Dict[str, Any]:
@@ -87,17 +89,24 @@ def get_vector_store(collection_name, embeddings=None):
 #     except Exception as e:
 #         raise Exception(f"SpringBoot API error: {str(e)}")
 
-async def search_documents(query_text: str, collection_name: str, top_k: int = 3, embeddings=None) -> Dict[str, Any]:
+async def search_documents_with_answer(
+    query_text: str, 
+    collection_name: str, 
+    context: str = "", 
+    top_k: int = 3
+) -> Dict[str, Any]:
     """벡터 저장소에서 유사 문서를 검색하고 답변을 생성합니다."""
     try:
-        print(f"Searching documents for query: {query_text}")
-        print(f"Using collection: {collection_name}")
+        logger.info(f"Searching documents for query: {query_text}")
+        logger.info(f"Using collection: {collection_name}")
         
-        vector_store = get_vector_store(collection_name, embeddings)
+        # 1. 벡터 저장소에서 유사 문서 검색
+        vector_store = get_vector_store(collection_name)
         docs_and_scores = vector_store.similarity_search_with_score(query_text, k=top_k)
         
-        print(f"Found {len(docs_and_scores)} documents")
+        logger.info(f"Found {len(docs_and_scores)} documents")
         
+        # 2. 문서 내용 정규화
         results = []
         for doc, score in docs_and_scores:
             normalized_content = re.sub(r'\s+', ' ', doc.page_content).strip()
@@ -106,9 +115,36 @@ async def search_documents(query_text: str, collection_name: str, top_k: int = 3
                 "metadata": doc.metadata,
                 "score": score
             })
-            print(f"Document score: {score}")
+            logger.debug(f"Document score: {score}")
 
-        answer = await create_answer_with_gemini(query_text, results)
+        # 3. 컨텍스트를 대화 기록 형식으로 변환
+        chat_history = []
+        if context:
+            lines = context.strip().split('\n')
+            current_role = None
+            current_content = []
+            
+            for line in lines:
+                if line.startswith('사용자:') or line.startswith('AI:'):
+                    if current_role and current_content:
+                        chat_history.append({
+                            'role': 'user' if current_role == '사용자' else 'assistant',
+                            'content': '\n'.join(current_content).strip()
+                        })
+                    current_role = '사용자' if line.startswith('사용자:') else 'assistant'
+                    current_content = [line.split(':', 1)[1].strip()]
+                else:
+                    current_content.append(line)
+            
+            if current_role and current_content:
+                chat_history.append({
+                    'role': 'user' if current_role == '사용자' else 'assistant',
+                    'content': '\n'.join(current_content).strip()
+                })
+
+        # 4. Gemini로 답변 생성
+        answer = await create_answer_with_gemini(query_text, results, chat_history)
+        logger.info("Generated answer from Gemini")
         
         return {
             "query": query_text,
@@ -117,5 +153,8 @@ async def search_documents(query_text: str, collection_name: str, top_k: int = 3
         }
         
     except Exception as e:
-        print(f"Error in search_documents: {str(e)}")
-        raise Exception(f"문서 검색 중 오류 발생: {str(e)}")
+        logger.error(f"Error in search_documents_with_answer: {str(e)}", exc_info=True)
+        raise Exception(f"문서 검색 및 답변 생성 중 오류 발생: {str(e)}")
+
+# 함수를 모듈 레벨에서 export
+__all__ = ['search_documents_with_answer']

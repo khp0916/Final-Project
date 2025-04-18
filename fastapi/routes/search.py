@@ -1,25 +1,38 @@
 # routes/search.py
 from fastapi import APIRouter, HTTPException
-from services.query import search_documents_with_answer
+from services import search_documents_with_answer
 from models.schema import SearchQuery, SearchResponse
+from pydantic import BaseModel
+from typing import Optional
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-@router.post("/chat/ask", response_model=SearchResponse)
-async def search_endpoint(query: SearchQuery):
-    """벡터 저장소에서 유사 문서를 검색하고 답변을 생성"""
+class SearchQuery(BaseModel):
+    query: str
+    collection_name: str
+    top_k: Optional[int] = 3
+
+@router.post("/query")
+async def search_query(query: SearchQuery):
+    """문서를 검색하고 답변을 생성합니다."""
     try:
-        if not query.collection_name:
-            raise HTTPException(status_code=400, detail="Collection name is required")
-            
-        results = await search_documents_with_answer(
+        logger.info(f"Received search query: {query.query}")
+        logger.info(f"Collection: {query.collection_name}")
+        
+        result = await search_documents_with_answer(
             query_text=query.query,
             collection_name=query.collection_name,
             top_k=query.top_k
         )
-        return results
+        
+        logger.info("Successfully generated search results")
+        return result
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error processing search query: {str(e)}", exc_info=True)
+        raise
 
 # @router.post("/upload")
 # async def upload_endpoint(file: UploadFile = File(...), collection_name: str = Form("langchain")):
