@@ -125,7 +125,9 @@ async def search_documents_with_answer(
             current_content = []
             
             for line in lines:
-                if line.startswith('사용자:') or line.startswith('AI:'):
+                if line == "이전 대화 내용:":
+                    continue
+                elif line.startswith('사용자:') or line.startswith('AI:'):
                     if current_role and current_content:
                         chat_history.append({
                             'role': 'user' if current_role == '사용자' else 'assistant',
@@ -133,7 +135,7 @@ async def search_documents_with_answer(
                         })
                     current_role = '사용자' if line.startswith('사용자:') else 'assistant'
                     current_content = [line.split(':', 1)[1].strip()]
-                else:
+                elif line.strip():  # 빈 줄이 아닌 경우에만 내용에 추가
                     current_content.append(line)
             
             if current_role and current_content:
@@ -141,6 +143,8 @@ async def search_documents_with_answer(
                     'role': 'user' if current_role == '사용자' else 'assistant',
                     'content': '\n'.join(current_content).strip()
                 })
+            
+            logger.info(f"Converted context to chat history: {len(chat_history)} messages")
 
         # 4. Gemini로 답변 생성
         answer = await create_answer_with_gemini(query_text, results, chat_history)

@@ -75,21 +75,29 @@ public class ChatService {
                                     .orElseThrow(() -> new RuntimeException("Member not found"));
                             
                             String productIdStr = dto.getCollection_name().replace("product_", "").replace("_embeddings", "");
+                            Long productId;
+                            try {
+                                productId = Long.parseLong(productIdStr);
+                            } catch (NumberFormatException e) {
+                                log.error("Invalid product ID format: {}", productIdStr);
+                                throw new RuntimeException("Invalid product ID format");
+                            }
                             
                             QueryHistory queryHistory = new QueryHistory();
                             long currentTime = System.currentTimeMillis();
                             long nanoTime = System.nanoTime() % 1000;
                             queryHistory.setQueryId(currentTime * 1000 + nanoTime);
-                            queryHistory.setProductId(Long.parseLong(productIdStr));
+                            queryHistory.setProductId(productId);
                             queryHistory.setMemberId(member.getMemberId());
                             queryHistory.setQueryText(dto.getQuery());
                             queryHistory.setResponseText(answer);
                             queryHistory.setQueryTime(currentTime);
                             queryHistoryRepository.save(queryHistory);
                             
-                            log.info("Query history saved for user: {}", userId);
+                            log.info("Query history saved for user: {}, product: {}", userId, productId);
                         } catch (Exception e) {
-                            log.warn("Failed to save query history: {}", e.getMessage());
+                            log.error("Failed to save query history: {}", e.getMessage());
+                            // 채팅 기록 저장 실패는 전체 프로세스를 중단시키지 않음
                         }
                     }
                     
@@ -108,9 +116,14 @@ public class ChatService {
         List<QueryHistory> histories = queryHistoryRepository
                 .findByProductIdAndMemberIdOrderByQueryTimeDesc(productId, userId);
 
+        // 최근 10개만 반환
+        List<QueryHistory> recentHistory = histories.stream()
+            .limit(10)
+            .collect(Collectors.toList());
+
         log.info("Found {} chat history records for product: {}, user: {}",
-                histories.size(), productId, userId);
-        return histories.stream()
+                recentHistory.size(), productId, userId);
+        return recentHistory.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
