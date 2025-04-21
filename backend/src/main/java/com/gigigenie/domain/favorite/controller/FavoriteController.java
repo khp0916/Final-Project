@@ -1,6 +1,6 @@
 package com.gigigenie.domain.favorite.controller;
 
-import com.gigigenie.domain.favorite.dto.FavoriteRequest;
+import com.gigigenie.domain.favorite.dto.FavoriteRequestDTO;
 import com.gigigenie.domain.favorite.service.FavoriteService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,14 +30,14 @@ public class FavoriteController {
 
     @Operation(summary = "즐겨찾기 추가")
     @PostMapping("/add")
-    public void addFavorite(@RequestBody FavoriteRequest request) {
+    public void addFavorite(@RequestBody FavoriteRequestDTO request) {
         log.info("즐겨찾기 추가 요청: {}", request);
         favoriteService.addFavorite(request);
     }
 
     @Operation(summary = "즐겨찾기 삭제")
     @PostMapping("/delete")
-    public void deleteFavorite(@RequestBody FavoriteRequest request) {
+    public void deleteFavorite(@RequestBody FavoriteRequestDTO request) {
         log.info("즐겨찾기 삭제 요청: {}", request);
         favoriteService.deleteFavorite(request);
     }

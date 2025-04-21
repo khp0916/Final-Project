@@ -5,7 +5,7 @@ import lombok.Setter;
 
 @Setter
 @Getter
-public class FavoriteRequest {
+public class FavoriteRequestDTO {
     private Integer memberId;
     private Integer productId;
 }

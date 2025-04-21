@@ -4,7 +4,7 @@ import lombok.Data;
 import java.util.List;
 
 @Data
-public class EmbeddingResponse {
+public class EmbeddingResponseDTO {
     private List<DataItem> data;
     private String model;
     private String object;

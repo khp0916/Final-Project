@@ -1,6 +1,6 @@
 package com.gigigenie.domain.favorite.service;
 
-import com.gigigenie.domain.favorite.dto.FavoriteRequest;
+import com.gigigenie.domain.favorite.dto.FavoriteRequestDTO;
 import com.gigigenie.domain.favorite.entity.Favorite;
 import com.gigigenie.domain.favorite.repository.FavoriteRepository;
 import com.gigigenie.domain.member.entity.Member;
@@ -36,7 +36,7 @@ public class FavoriteService {
                 .toList();
     }
 
-    public void addFavorite(FavoriteRequest request) {
+    public void addFavorite(FavoriteRequestDTO request) {
         Optional<Member> optionalMember = memberRepository.findById(request.getMemberId());
         Optional<Product> optionalProduct = productRepository.findById(request.getProductId());
 
@@ -61,7 +61,7 @@ public class FavoriteService {
         favoriteRepository.save(new Favorite(product, member));
     }
 
-    public void deleteFavorite(FavoriteRequest request) {
+    public void deleteFavorite(FavoriteRequestDTO request) {
         Optional<Member> optionalMember = memberRepository.findById(request.getMemberId());
         Optional<Product> optionalProduct = productRepository.findById(request.getProductId());
 

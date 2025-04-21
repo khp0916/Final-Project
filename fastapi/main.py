@@ -6,7 +6,7 @@ from routes import search, chat
 app = FastAPI()
 
 # 라우터 등록
-app.include_router(search.router, prefix="/api", tags=["search"])
+app.include_router(search.router, tags=["search"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 # app.include_router(upload.router, prefix="/api/upload", tags=["upload"])
 # app.include_router(collections.router, prefix="/api/collections", tags=["collections"])

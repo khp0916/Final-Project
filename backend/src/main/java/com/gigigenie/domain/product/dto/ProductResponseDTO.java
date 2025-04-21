@@ -7,7 +7,7 @@ import lombok.*;
 @Builder
 @Setter
 @Getter
-public class ProductResponse {
+public class ProductResponseDTO {
     private Integer id;
     private String name;
     private String icon;
