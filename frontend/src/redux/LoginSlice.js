@@ -44,6 +44,8 @@ const loginSlice = createSlice({
       
       localStorage.removeItem("user");
       localStorage.removeItem("token");
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("userId");
     },
     clearError: (state) => {
       state.error = null;

@@ -22,45 +22,51 @@ const ChatPage = () => {
 
     const loadPreviousChats = async () => {
       try {
-        console.log("이전 대화 기록 불러오기 시작 - 제품 ID:", productId);
-        const response = await getChatHistory(productId);
-        console.log("받아온 대화 기록:", response);
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+        const userId = localStorage.getItem('userId');
         
-        if (!response || !response.data || response.data.length === 0) {
-          console.log("대화 기록이 없어 초기 인사말 표시");
+        // 로그인한 경우에만 이전 대화 기록을 로드
+        if (isLoggedIn && userId) {
+          console.log("이전 대화 기록 불러오기 시작 - 제품 ID:", productId, "User ID:", userId);
+          const response = await getChatHistory(productId, userId);
+          console.log("받아온 대화 기록:", response);
+          
+          if (response && response.data && response.data.length > 0) {
+            console.log("대화 기록을 메시지 형식으로 변환");
+            const sortedData = [...response.data].sort((a, b) => 
+              new Date(a.formattedQueryTime) - new Date(b.formattedQueryTime)
+            );
+            
+            const newMessages = sortedData.flatMap(item => [
+              {
+                type: 'user',
+                content: item.queryText,
+                timestamp: item.formattedQueryTime
+              },
+              {
+                type: 'assistant',
+                content: item.responseText,
+                timestamp: item.formattedQueryTime
+              }
+            ]);
+            
+            console.log("변환된 메시지:", newMessages);
+            setMessages(newMessages);
+          } else {
+            // 대화 기록이 없는 경우 초기 인사말 표시
+            setMessages([{
+              type: 'assistant',
+              content: "안녕하세요. 어떤 사용법을 알려드릴까요?",
+              timestamp: new Date().toLocaleString('ko-KR')
+            }]);
+          }
+        } else {
+          // 로그인하지 않은 경우 초기 인사말만 표시
           setMessages([{
             type: 'assistant',
             content: "안녕하세요. 어떤 사용법을 알려드릴까요?",
             timestamp: new Date().toLocaleString('ko-KR')
           }]);
-        } else {
-          console.log("대화 기록을 메시지 형식으로 변환");
-          // 질문과 답변을 시간순으로 정렬 (queryTime을 기준으로)
-          const sortedHistory = response.data.sort((a, b) => {
-            if (a.queryTime === b.queryTime) {
-              // 같은 시간이면 queryId로 정렬 (나중에 생성된 것이 뒤에 오도록)
-              return a.queryId - b.queryId;
-            }
-            return a.queryTime - b.queryTime;
-          });
-          
-          // 질문과 답변을 번갈아가며 표시
-          const newMessages = [];
-          sortedHistory.forEach(item => {
-              newMessages.push({
-                  type: 'user',
-                  content: item.queryText,
-                  timestamp: item.formattedQueryTime
-              });
-              newMessages.push({
-                  type: 'assistant',
-                  content: item.responseText,
-                  timestamp: item.formattedQueryTime
-              });
-          });
-          
-          console.log("변환된 메시지:", newMessages);
-          setMessages(newMessages);
         }
       } catch (error) {
         console.error("대화 기록 불러오기 실패:", error);
@@ -100,7 +106,7 @@ const ChatPage = () => {
       console.error("답변 생성 실패:", error);
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { type: 'assistant', content: "죄송합니다. 답변을 생성하는 중에 문제가 발생했습니다.", timestamp: new Date().toLocaleString('ko-KR') }
+        { type: 'assistant', content: "죄송합니다. 답변을 생성하는 중에 문제가 발생했습니다. 다시 시도해주세요.", timestamp: new Date().toLocaleString('ko-KR') }
       ]);
     } finally {
       setIsLoading(false);

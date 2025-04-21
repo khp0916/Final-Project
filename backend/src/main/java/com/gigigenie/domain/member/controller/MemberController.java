@@ -63,10 +63,16 @@ public class MemberController {
         // 로그인 성공시 accessToken, refreshToken 생성
         String refreshToken = jwtUtil.generateToken(loginClaims, jwtProps.getRefreshTokenExpirationPeriod());
         String accessToken = loginClaims.get("accessToken").toString();
+        
         // TODO: user 로그인시, refreshToken token 테이블에 저장
-//        tokenService.saveRefreshToken(accessToken, refreshToken, memberService.getMember(loginDTO.getEmail()));
+        // tokenService.saveRefreshToken(accessToken, refreshToken, memberService.getMember(loginDTO.getEmail()));
+        
         // refreshToken 쿠키로 클라이언트에게 전달
         CookieUtil.setTokenCookie(response, "refreshToken", refreshToken, jwtProps.getRefreshTokenExpirationPeriod()); // 1day
+        
+        // 로그인 상태와 userId를 쿠키에 저장
+        CookieUtil.setTokenCookie(response, "isLoggedIn", "true", jwtProps.getRefreshTokenExpirationPeriod());
+        CookieUtil.setTokenCookie(response, "userId", loginClaims.get("id").toString(), jwtProps.getRefreshTokenExpirationPeriod());
 
         LoginResponseDTO loginResponseDTO = LoginResponseDTO.builder()
                 .id(loginClaims.get("id").toString())
