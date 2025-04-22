@@ -9,7 +9,7 @@ from langchain_postgres import PGVector
 # from langchain_community.document_loaders import PyMuPDFLoader
 # from langchain_text_splitters import RecursiveCharacterTextSplitter
 # import tempfile
-from services.llm import create_answer_with_gemini
+from services.llm import create_answer_with_gemini, create_product_explanation
 import logging
 
 logger = logging.getLogger(__name__)
@@ -177,30 +177,23 @@ async def search_products_by_query(
         logger.info(f"Found {len(docs_and_scores)} products")
         
         # 검색 결과에서 제품 정보 추출
-        results = []
+        products = []
         for doc, score in docs_and_scores:
             if 'product_id' in doc.metadata:
-                results.append({
+                products.append({
                     "product_id": doc.metadata['product_id'],
-                    "content": doc.page_content,  # 제품 설명 추가
+                    "content": doc.page_content,
                     "score": score
                 })
                 logger.debug(f"Product ID: {doc.metadata['product_id']}, Score: {score}")
 
-        # Gemini로 검색 결과 설명 생성
-        prompt = f"다음과 같은 검색어로 제품을 검색했습니다: {query}\n\n"
-        for result in results:
-            prompt += f"제품 정보: {result['content']}\n유사도 점수: {result['score']}\n\n"
-        
-        answer = await create_answer_with_gemini(
-            query_text="검색된 제품들의 특징과 사용자가 찾는 제품과의 관련성을 설명해주세요.",
-            retrieved_docs=results
-        )
+        # 제품 검색 전용 LLM 함수로 설명 생성
+        explanation = await create_product_explanation(query, products)
         
         return {
             "query": query,
-            "answer": answer,
-            "products": results
+            "answer": explanation,
+            "products": products
         }
         
     except Exception as e:
