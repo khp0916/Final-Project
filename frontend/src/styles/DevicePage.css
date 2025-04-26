@@ -84,7 +84,6 @@
   color: #f44336;
 }
 
-
 .device-name {
   font-size: 12px !important;
   text-align: center;
@@ -93,6 +92,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.device-explanation {
+  font-size: 11px !important;
+  text-align: center;
+  color: #666666;
+  margin-top: 8px !important;
+  padding: 8px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 @media (max-width: 600px) {

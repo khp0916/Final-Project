@@ -9,3 +9,13 @@ export const productList = async () => {
         throw error;
     }
 };
+
+export const aiSearch = async (query) => {
+    try {
+        const response = await axiosInstance.post('/product/ai-search', { query });
+        return response.data;
+    } catch (error) {
+        console.error("AI 검색 실패:", error);
+        throw error;
+    }
+};

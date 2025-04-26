@@ -9,7 +9,7 @@ from langchain_postgres import PGVector
 # from langchain_community.document_loaders import PyMuPDFLoader
 # from langchain_text_splitters import RecursiveCharacterTextSplitter
 # import tempfile
-from services.llm import create_answer_with_gemini
+from services.llm import create_answer_with_gemini, create_product_explanation
 import logging
 
 logger = logging.getLogger(__name__)
@@ -160,5 +160,45 @@ async def search_documents_with_answer(
         logger.error(f"Error in search_documents_with_answer: {str(e)}", exc_info=True)
         raise Exception(f"문서 검색 및 답변 생성 중 오류 발생: {str(e)}")
 
+async def search_products_by_query(
+    query: str,
+    collection_name: str,
+    top_k: int = 3
+) -> Dict[str, Any]:
+    """사용자의 자연어 입력을 기반으로 유사한 제품을 검색하고 설명을 생성합니다."""
+    try:
+        logger.info(f"Searching products with query: {query}")
+        logger.info(f"Using collection: {collection_name}")
+        
+        # 벡터 저장소에서 유사 문서 검색
+        vector_store = get_vector_store(collection_name)
+        docs_and_scores = vector_store.similarity_search_with_score(query, k=top_k)
+        
+        logger.info(f"Found {len(docs_and_scores)} products")
+        
+        # 검색 결과에서 제품 정보 추출
+        products = []
+        for doc, score in docs_and_scores:
+            if 'product_id' in doc.metadata:
+                products.append({
+                    "product_id": doc.metadata['product_id'],
+                    "content": doc.page_content,
+                    "score": score
+                })
+                logger.debug(f"Product ID: {doc.metadata['product_id']}, Score: {score}")
+
+        # 제품 검색 전용 LLM 함수로 설명 생성
+        explanation = await create_product_explanation(query, products)
+        
+        return {
+            "query": query,
+            "answer": explanation,
+            "products": products
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in search_products_by_query: {str(e)}", exc_info=True)
+        raise Exception(f"제품 검색 중 오류 발생: {str(e)}")
+
 # 함수를 모듈 레벨에서 export
-__all__ = ['search_documents_with_answer']
+__all__ = ['search_documents_with_answer', 'search_products_by_query']

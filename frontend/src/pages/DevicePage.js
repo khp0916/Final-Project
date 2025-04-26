@@ -1,10 +1,10 @@
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
-import { Box, Typography, TextField, FormControlLabel, Switch, Tooltip } from "@mui/material";
+import { Box, Typography, TextField, FormControlLabel, Switch, Tooltip, CircularProgress } from "@mui/material";
 import React, { useEffect, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { productList } from "../api/productApi";
+import { productList, aiSearch } from "../api/productApi";
 import { addFavorite, deleteFavorite, favoriteList } from "../api/favoriteApi";
 import { setProducts } from "../redux/ProductSlice";
 // import { loginSuccess } from "../redux/LoginSlice";
@@ -79,34 +79,54 @@ const DevicePage = () => {
 
     try {
       if (isAISearch) {
-        // AI 검색 로직은 추후 구현
-        console.log("AI 검색 기능 준비 중입니다.");
-        return;
+        setIsProcessing(true);
+        const response = await aiSearch(query);
+        setSearchResults(response.products.map(product => ({
+          id: product.product_id,
+          name: product.content,
+          explanation: product.explanation,
+          icon: products.find(p => p.id === product.product_id)?.icon || '/default-icon.png'
+        })));
+      } else {
+        // 기존 검색 로직
+        const filtered = products.filter((device) => 
+          device?.name?.toLowerCase().includes(query.toLowerCase())
+        );
+        setSearchResults(filtered);
       }
-
-      // 기존 검색 로직
-      const filtered = products.filter((device) => 
-        device?.name?.toLowerCase().includes(query.toLowerCase())
-      );
-      setSearchResults(filtered);
     } catch (error) {
       console.error("검색 중 오류 발생:", error);
       setSearchResults([]);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   // 검색어 변경 핸들러
   const handleSearchChange = (e) => {
-    const newQuery = e.target.value;
-    setSearchQuery(newQuery);
-    handleSearch(newQuery);  // 검색어 변경시마다 검색 실행
+    const query = e.target.value;
+    setSearchQuery(query);
+    
+    // AI 검색이 아닐 때만 실시간 검색
+    if (!isAISearch) {
+      handleSearch(query);
+    }
   };
 
-  // AI 검색 모드 변경 핸들러
+  // 엔터 키 핸들러
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch(searchQuery);
+    }
+  };
+
+  // AI 검색 토글 핸들러
   const handleAISearchToggle = (e) => {
     setIsAISearch(e.target.checked);
-    setSearchQuery("");  // 검색어 초기화
-    setSearchResults([]); // 검색 결과 초기화
+    // 토글 상태가 변경되면 현재 검색어로 다시 검색
+    if (searchQuery.trim()) {
+      handleSearch(searchQuery);
+    }
   };
 
   // 표시할 디바이스 목록 결정
@@ -177,6 +197,7 @@ const DevicePage = () => {
           placeholder={isAISearch ? "제품 특징으로 원하는 모델을 검색하세요." : "제품 모델명으로 검색하세요."}
           value={searchQuery}
           onChange={handleSearchChange}
+          onKeyDown={handleKeyPress}
           sx={{
             '& .MuiOutlinedInput-root': {
               backgroundColor: 'white',
@@ -217,6 +238,12 @@ const DevicePage = () => {
         />
       </Box>
 
+      {isProcessing && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+          <CircularProgress size={24} />
+        </Box>
+      )}
+
       <Box className="device-grid">
         {displayedDevices.map((device) => (
           <Box
@@ -242,6 +269,11 @@ const DevicePage = () => {
               </div>
             </Box>
             <Typography className="device-name">{device.name}</Typography>
+            {isAISearch && device.explanation && (
+              <Typography className="device-explanation">
+                {device.explanation}
+              </Typography>
+            )}
           </Box>
         ))}
       </Box>

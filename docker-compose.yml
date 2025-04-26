@@ -1,56 +1,62 @@
-# version: "3.8"
+version: '3.8'
 
 services:
-  db:
-    build:
-      context: ./backend/db
-      dockerfile: Dockerfile
-    ports:
-      - 3308:3306
-    volumes:
-      - ./db/db_data:/var/lib/mysql
-    networks:
-      - container_network
-
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - 8080:8080
-    depends_on:
-      - db
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/gigi?useSSL=false&serverTimeZone=UTC&useLegacyDatetimeCode=false&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_DRIVER: com.mysql.cj.jdbc.Driver
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: 1234
-    networks:
-      - container_network
-
-  fastapi:
-    build:
-      context: ./backend/fastapi
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - 8000:8000
-    networks:
-      - container_network
-
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    restart: always
+    build: ./frontend
     ports:
-      - 3000:3000
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_FRONT_URL=http://localhost:3000
     depends_on:
       - backend
-      - fastapi
-    networks:
-      - container_network
 
-networks:
-  container_network:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/gigigenie
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=1234
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - APP_PROPS_JWT_SECRET_KEY=1234567890123456789012345678901234567890
+      - APP_PROPS_JWT_ACCESS_TOKEN_EXPIRATION_PERIOD=150
+      - APP_PROPS_JWT_REFRESH_TOKEN_EXPIRATION_PERIOD=1440
+      - UPSTAGE_API_KEY=${UPSTAGE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FASTAPI_URL=http://fastapi:8000
+    depends_on:
+      - db
+      - fastapi
+
+  fastapi:
+    build: ./fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=gigigenie
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - UPSTAGE_API_KEY=${UPSTAGE_API_KEY}
+      - SPRINGBOOT_API_URL=http://backend:8080
+    depends_on:
+      - db
+
+  db:
+    build: ./db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=gigigenie
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

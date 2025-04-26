@@ -1,6 +1,6 @@
 package com.gigigenie.domain.chat.client;
 
-import com.gigigenie.domain.chat.dto.EmbeddingResponse;
+import com.gigigenie.domain.chat.dto.EmbeddingResponseDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -37,8 +37,8 @@ public class EmbeddingClient {
             return webClient.post()
                     .bodyValue(requestBody)
                     .retrieve()
-                    .bodyToMono(EmbeddingResponse.class)
-                    .map(EmbeddingResponse::getEmbedding)
+                    .bodyToMono(EmbeddingResponseDTO.class)
+                    .map(EmbeddingResponseDTO::getEmbedding)
                     .block();
         } catch (WebClientResponseException e) {
             System.out.println("임베딩 API 응답 오류: " + e.getStatusCode());
