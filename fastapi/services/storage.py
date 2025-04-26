@@ -19,30 +19,29 @@ load_dotenv()
 embeddings = get_embeddings()
 
 def get_vector_store(collection_name, embeddings=None):
-    """벡터 저장소 인스턴스를 반환합니다."""
+    """기존 벡터 저장소 인스턴스만 반환. 컬렉션이 없으면 에러 발생."""
     if not embeddings:
         embeddings = get_embeddings()
-    
-    # 환경 변수에서 데이터베이스 연결 정보 가져오기
+
     POSTGRES_USER = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
     POSTGRES_DB = os.getenv("POSTGRES_DB", "gigigenie")
     POSTGRES_HOST = os.getenv("POSTGRES_HOST")
     POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-    
-    # 연결 문자열 구성
+
     connection = f"postgresql+psycopg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-    
+
     try:
         vector_store = PGVector(
             embeddings=embeddings,
             collection_name=collection_name,
-            connection=connection
+            connection=connection,
+            create_collection_if_not_exists=False  # 컬렉션이 없으면 에러 발생
         )
-        logger.info("Successfully created PGVector instance")
+        logger.info("Successfully loaded existing PGVector collection instance")
         return vector_store
     except Exception as e:
-        logger.error(f"Error creating PGVector instance: {str(e)}")
+        logger.error(f"Error loading PGVector collection instance: {str(e)}")
         raise
 
 # async def process_pdf(file_content: bytes, file_name: str, collection_name: str = "langchain", chunk_size: int = 210, chunk_overlap: int = 50) -> Dict[str, Any]:

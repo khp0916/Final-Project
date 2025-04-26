@@ -1,35 +1,32 @@
 package com.gigigenie.domain.chat.service;
 
-import com.gigigenie.domain.chat.client.EmbeddingClient;
+import com.gigigenie.config.WebClientConfig;
 import com.gigigenie.domain.chat.entity.LangchainCollection;
 import com.gigigenie.domain.chat.entity.LangchainEmbedding;
 import com.gigigenie.domain.chat.repository.LangchainCollectionRepository;
 import com.gigigenie.domain.chat.repository.LangchainEmbeddingRepository;
-import com.gigigenie.domain.chat.util.PdfTextExtractor;
-import com.gigigenie.domain.chat.util.TextSplitter;
 import com.gigigenie.domain.product.entity.Category;
 import com.gigigenie.domain.product.entity.Product;
 import com.gigigenie.domain.product.repository.CategoryRepository;
 import com.gigigenie.domain.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.BodyInserters;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class PdfService {
 
-    private final PdfTextExtractor extractor;
-    private final EmbeddingClient embeddingClient;
+    private final WebClientConfig webClientConfig;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
     private final LangchainCollectionRepository collectionRepository;
@@ -37,9 +34,7 @@ public class PdfService {
 
     @Transactional
     public Map<String, Object> processPdf(MultipartFile file, Integer categoryId, int chunkSize, int chunkOverlap, String name) {
-        String text = extractor.extract(file);
-        List<String> chunks = TextSplitter.split(text, chunkSize, chunkOverlap);
-
+        // 카테고리와 제품 정보 저장
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
@@ -51,11 +46,32 @@ public class PdfService {
 
         productRepository.save(product);
 
-        String collectionName = "product_" + product.getId() + "_embeddings";
-        UUID collectionUuid = UUID.randomUUID();
+        // FastAPI로 PDF 처리 요청
+        Map<String, Object> fastApiResponse = webClientConfig.webClient()
+                .post()
+                .uri("/api/upload")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(BodyInserters.fromMultipartData("file", file.getResource())
+                        .with("category_id", categoryId)
+                        .with("name", name)
+                        .with("product_id", product.getId())
+                        .with("chunk_size", chunkSize)
+                        .with("chunk_overlap", chunkOverlap))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
 
+        if (fastApiResponse == null) {
+            throw new RuntimeException("FastAPI 응답이 null입니다.");
+        }
+
+        // FastAPI 응답에서 컬렉션 정보 추출
+        String collectionName = (String) fastApiResponse.get("collection_name");
+        String collectionUuid = (String) fastApiResponse.get("collection_uuid");
+
+        // 컬렉션 정보 저장
         LangchainCollection collection = LangchainCollection.builder()
-                .uuid(collectionUuid)
+                .uuid(java.util.UUID.fromString(collectionUuid))
                 .name(collectionName)
                 .cmetadata(Map.of(
                         "product_id", product.getId(),
@@ -65,49 +81,11 @@ public class PdfService {
                 .build();
         collectionRepository.save(collection);
 
-        List<LangchainEmbedding> embeddingEntities = Collections.synchronizedList(new ArrayList<>());
-
-        ExecutorService executor = Executors.newFixedThreadPool(4);
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
-
-        for (int i = 0; i < chunks.size(); i++) {
-            final int index = i;
-            final String chunk = chunks.get(i);
-
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                try {
-                    List<Float> vector = embeddingClient.embed(chunk);
-                    LangchainEmbedding embedding = LangchainEmbedding.builder()
-                            .collection(collection)
-                            .embedding(vector)
-                            .document(chunk)
-                            .cmetadata(Map.of(
-                                    "chunk_index", index,
-                                    "source", file.getOriginalFilename(),
-                                    "product_id", product.getId()
-                            ))
-                            .build();
-
-                    embeddingEntities.add(embedding);
-                } catch (Exception e) {
-                    log.warn("임베딩 실패 (index: {}): {}", index, chunk.length() > 50 ? chunk.substring(0, 50) + "..." : chunk);
-                }
-            }, executor);
-
-            futures.add(future);
-        }
-
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        executor.shutdown();
-
-        embeddingRepository.saveAll(embeddingEntities);
-
         return Map.of(
                 "status", "success",
                 "collection_name", collectionName,
-                "collection_uuid", collectionUuid.toString(),
-                "chunks_saved", embeddingEntities.size()
+                "collection_uuid", collectionUuid,
+                "chunks_saved", fastApiResponse.get("chunks_saved")
         );
     }
-
 }

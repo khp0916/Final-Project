@@ -1,6 +1,7 @@
 카테고리		모델명				PDF 이름
 
 스마트폰		Samsung Galaxy S24		galaxy-s24-manual-SM-S92X-DS-UU-rev-1-Korean
+		Samsung Galaxy S25		galaxy-s25-user-guide-SM-S93X-15-Korean
 태블릿		Samsung SM-T865N		SM-T86X_UM_SS_Kor_Rev.1.0_220311
 노트북		HP c02100613			c02100613
 냉장고		LG R-B579HM			1105121400_3828JD8760F_2
