@@ -48,7 +48,7 @@ services:
       - db
 
   db:
-    image: postgres:latest
+    build: ./db
     ports:
       - "5432:5432"
     environment:

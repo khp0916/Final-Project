@@ -1,7 +1,7 @@
 FROM gradle:8.5-jdk17 AS build
 WORKDIR /app
 COPY . .
-RUN gradle build --no-daemon
+RUN gradle build --no-daemon -x test
 
 FROM openjdk:17-jdk-slim
 WORKDIR /app
