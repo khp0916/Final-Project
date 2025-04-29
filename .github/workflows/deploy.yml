@@ -8,20 +8,61 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: '**/requirements.txt'
+
+      - name: Build and Deploy
         uses: appleboy/ssh-action@master
         with:
-          username: ubuntu
           host: ${{ secrets.EC2_HOST_IP }}
+          username: ubuntu
           key: ${{ secrets.SSH_KEY }}
+          script_timeout: "10m"
+          command_timeout: "10m"
           script: |
+            echo "Starting deployment..."
             cd /home/ubuntu/CICD/CICD
-            sudo git pull origin main
+            git fetch origin
+            git checkout dev
+            git pull origin dev
+            
+            # 환경 변수 파일 생성
+            echo "${{ secrets.BACKEND_ENV }}" > backend/.env
+            echo "${{ secrets.FASTAPI_ENV }}" > fastapi/.env
+            echo "${{ secrets.FRONTEND_ENV }}" > frontend/.env
+            echo "${{ secrets.DB_ENV }}" > .env
+            
+            # API 키 환경 변수 추가
+            echo "UPSTAGE_API_KEY=${{ secrets.UPSTAGE_API_KEY }}" >> fastapi/.env
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> fastapi/.env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> fastapi/.env
+            
+            # Docker Compose 실행
             sudo docker-compose down
+            sudo docker-compose pull
             sudo docker-compose up -d --build
-          
+            
+            # 컨테이너 상태 확인
+            sudo docker-compose ps
+            sudo docker-compose logs --tail=50
