@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - dev
-  workflow_dispatch:
 
 jobs:
   deploy:
@@ -24,7 +23,6 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -39,7 +37,10 @@ jobs:
           host: ${{ secrets.EC2_HOST_IP }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
+          script_timeout: "10m"
+          command_timeout: "10m"
           script: |
+            echo "Starting deployment..."
             cd /home/ubuntu/CICD/CICD
             git fetch origin
             git checkout dev
@@ -50,6 +51,11 @@ jobs:
             echo "${{ secrets.FASTAPI_ENV }}" > fastapi/.env
             echo "${{ secrets.FRONTEND_ENV }}" > frontend/.env
             echo "${{ secrets.DB_ENV }}" > .env
+            
+            # API 키 환경 변수 추가
+            echo "UPSTAGE_API_KEY=${{ secrets.UPSTAGE_API_KEY }}" >> fastapi/.env
+            echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> fastapi/.env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> fastapi/.env
             
             # Docker Compose 실행
             sudo docker-compose down
